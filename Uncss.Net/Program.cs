@@ -20,6 +20,7 @@ namespace Uncss.Net
             var config = Configuration.Default
                 .WithDefaultLoader(conf =>
                 {
+                    // Download page resources such as CSS files
                     conf.IsResourceLoadingEnabled = true;
                     conf.IsNavigationEnabled = true;
                     conf.Filter = request =>
@@ -38,12 +39,13 @@ namespace Uncss.Net
                         return false;
                     };
                 })
-                .WithCss()
+                .WithCss() // Parse CSS files and compute the style of every elements
                 .WithLocaleBasedEncoding();
 
-
+            // Process the urls set in the command line
             Parallel.ForEach(args.Where(_ => !string.IsNullOrEmpty(_)), url =>
             {
+                // Create a new BrowsingContext to download and parse the page
                 var browsingContext = BrowsingContext.New(config);
                 browsingContext.Requesting += (sender, ev) => Console.WriteLine("Requesting: " + ((RequestEvent)ev).Request.Address);
                 var u = Url.Create(url);
@@ -52,17 +54,19 @@ namespace Uncss.Net
                     return;
                 }
 
+                // Open the page
                 var openTask = browsingContext.OpenAsync(u);
-                if(openTask == null)
+                if (openTask == null)
                 {
                     return;
                 }
 
                 var document = openTask.Result;
-                var html = document.DocumentElement.InnerHtml;
+
+                // Get all stylesheets of the document
                 foreach (var stylesheet in document.StyleSheets.OfType<ICssStyleSheet>())
                 {
-                    foreach (var cssRule in stylesheet.Rules.OfType<ICssStyleRule>()) // TODO handle @ rule
+                    foreach (var cssRule in stylesheet.Rules.OfType<ICssStyleRule>()) // TODO handle @ rule and remove ::before, ::after, :hover, ...
                     {
                         foreach (var selector in GetAllSelectors(cssRule.Selector))
                         {
@@ -73,6 +77,7 @@ namespace Uncss.Net
                                 continue;
                             }
 
+                            // Check if the rule match an element of the document
                             var match = document.QuerySelector(r.Selector);
                             if (match != null)
                             {
@@ -91,14 +96,18 @@ namespace Uncss.Net
                 }
             });
 
-            foreach (var rule in rules.Keys.Where(r => !r.Used).OrderBy(r => r.Url).ThenBy(r => r.Selector))
+            // Display the list of unused rules
+            foreach (var rule in rules.Keys.Where(r => !r.Used).OrderBy(r => r.StylesheetUrl).ThenBy(r => r.Selector))
             {
-                Console.WriteLine(rule.Url + ": " + rule.Selector);
+                Console.WriteLine(rule.StylesheetUrl + ": " + rule.Selector);
             }
 
             File.WriteAllText("output.json", JsonConvert.SerializeObject(rules.Keys, Formatting.Indented));
         }
 
+
+        // Get all selectors of a CSS rule
+        // ".a, .b, .c" contains 3 selectors ".a", ".b" and ".c"
         private static IEnumerable<ISelector> GetAllSelectors(ISelector selector)
         {
             if (selector is IEnumerable<ISelector> selectors)
@@ -120,32 +129,24 @@ namespace Uncss.Net
 
     internal class Rule : IEquatable<Rule>
     {
-        public string Url { get; }
+        public string StylesheetUrl { get; }
         public string Selector { get; }
-        public string SelectorText { get; }
-        public bool Used => UsageUrl != null;
+        public string RuleText { get; }
         public string UsageUrl { get; set; }
+        public bool Used => UsageUrl != null;
 
-        public Rule(string url, string selector, string selectorText)
+        public Rule(string stylesheetUrl, string selector, string ruleText)
         {
-            Url = url ?? throw new ArgumentNullException(nameof(url));
+            StylesheetUrl = stylesheetUrl ?? throw new ArgumentNullException(nameof(stylesheetUrl));
             Selector = selector ?? throw new ArgumentNullException(nameof(selector));
-            SelectorText = selectorText ?? throw new ArgumentNullException(nameof(selectorText));
+            RuleText = ruleText ?? throw new ArgumentNullException(nameof(ruleText));
         }
 
-        public override bool Equals(object obj)
-        {
-            return Equals(obj as Rule);
-        }
+        public override bool Equals(object obj) => Equals(obj as Rule);
 
-        public bool Equals(Rule other)
-        {
-            return other != null &&
-                   Url == other.Url &&
-                   Selector == other.Selector;
-        }
+        public bool Equals(Rule other) => other != null && StylesheetUrl == other.StylesheetUrl && Selector == other.Selector;
 
-        public override int GetHashCode() => HashCode.Combine(Url, Selector);
+        public override int GetHashCode() => HashCode.Combine(StylesheetUrl, Selector);
 
         public static bool operator ==(Rule rule1, Rule rule2) => EqualityComparer<Rule>.Default.Equals(rule1, rule2);
 

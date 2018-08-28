@@ -80,8 +80,14 @@ namespace Uncss.Net
                             foreach (var selector in GetAllSelectors(cssRule.Selector))
                             {
                                 var querySelector = GetSelector(selector);
-                                var r = new Rule(stylesheet.Href, selector.Text, querySelector.Text, cssRule.SelectorText);
+                                var r = new Rule(stylesheet.Href, selector.Text, querySelector?.Text, cssRule.SelectorText);
                                 r = rules.GetOrAdd(r, r);
+
+                                if (querySelector == null)
+                                {
+                                    continue;
+                                }
+
                                 if (r.Used)
                                 {
                                     continue;
@@ -112,6 +118,11 @@ namespace Uncss.Net
             });
 
             // Display the list of unused rules
+            foreach (var rule in rules.Keys.Where(r => r.QuerySelector == null).OrderBy(r => r.StylesheetUrl).ThenBy(r => r.Selector))
+            {
+                Console.WriteLine((rule.StylesheetUrl ?? "inline") + ": " + rule.Selector + " (invalid)");
+            }
+
             foreach (var rule in rules.Keys.Where(r => !r.Used).OrderBy(r => r.StylesheetUrl).ThenBy(r => r.Selector))
             {
                 Console.WriteLine((rule.StylesheetUrl ?? "inline") + ": " + rule.Selector);
@@ -182,8 +193,8 @@ namespace Uncss.Net
         public Rule(string stylesheetUrl, string selector, string querySelector, string ruleText)
         {
             StylesheetUrl = stylesheetUrl;
+            QuerySelector = querySelector;
             Selector = selector ?? throw new ArgumentNullException(nameof(selector));
-            QuerySelector = querySelector ?? throw new ArgumentNullException(nameof(querySelector));
             RuleText = ruleText ?? throw new ArgumentNullException(nameof(ruleText));
         }
 

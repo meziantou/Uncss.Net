@@ -114,7 +114,7 @@ namespace Uncss.Net
             // Display the list of unused rules
             foreach (var rule in rules.Keys.Where(r => !r.Used).OrderBy(r => r.StylesheetUrl).ThenBy(r => r.Selector))
             {
-                Console.WriteLine(rule.StylesheetUrl + ": " + rule.Selector);
+                Console.WriteLine((rule.StylesheetUrl ?? "inline") + ": " + rule.Selector);
             }
 
             File.WriteAllText("output.json", JsonConvert.SerializeObject(rules.Keys, Formatting.Indented));
@@ -181,7 +181,7 @@ namespace Uncss.Net
 
         public Rule(string stylesheetUrl, string selector, string querySelector, string ruleText)
         {
-            StylesheetUrl = stylesheetUrl ?? throw new ArgumentNullException(nameof(stylesheetUrl));
+            StylesheetUrl = stylesheetUrl;
             Selector = selector ?? throw new ArgumentNullException(nameof(selector));
             QuerySelector = querySelector ?? throw new ArgumentNullException(nameof(querySelector));
             RuleText = ruleText ?? throw new ArgumentNullException(nameof(ruleText));
